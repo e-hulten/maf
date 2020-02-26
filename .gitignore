@@ -1,0 +1,11 @@
+__pycache__
+data
+gif_results
+models
+results
+marginal.pdf
+marginal.png
+scatter_good.pdf
+scatter.pdf
+scatter.png
+useless.py
