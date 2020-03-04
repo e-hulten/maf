@@ -7,4 +7,5 @@ The files in the ``data`` folder are adapted from the original repository by G. 
 **Note:** The validation loss diverges for the first few epochs, before it stabilises and gets on the right track. Might have to check my weight initialisation, which is different from the one used in the paper. 
 
 [1] https://arxiv.org/abs/1705.07057
+
 [2] https://github.com/gpapamak/maf/blob/master/datasets/
