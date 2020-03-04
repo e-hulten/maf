@@ -14,10 +14,10 @@ from utils_maf import (
 
 # --------- parameters ----------
 dataset = "hepmass"
-n_mades = 5
-hidden_dims = [512]
+n_mades = 5  # number of layers in the MAF
+hidden_dims = [512]  # the size of each MADE
 lr = 1e-4
-epochs = 100000
+epochs = 100000  # use early stopping
 random_order = False
 patience = 30
 # -------------------------------
