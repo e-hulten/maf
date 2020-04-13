@@ -2,9 +2,6 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 
-import datasets
-import util
-
 
 class MINIBOONE:
     class Data:
@@ -50,13 +47,3 @@ def load_data_normalised(root_path):
 
     return data_train, data_validate, data_test
 
-
-data = HEPMASS()
-train = torch.from_numpy(data.train.x)
-val = torch.from_numpy(data.val.x)
-test = torch.from_numpy(data.test.x)
-n_in = data.n_dims
-
-train_loader = torch.utils.data.DataLoader(train, batch_size=batch_size,)
-val_loader = torch.utils.data.DataLoader(val, batch_size=batch_size,)
-test_loader = torch.utils.data.DataLoader(test, batch_size=batch_size,)

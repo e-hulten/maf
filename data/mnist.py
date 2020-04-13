@@ -85,14 +85,3 @@ class MNIST:
         ax.set_yticks([])
         plt.show()
 
-
-data = MNIST(logit=True, dequantize=True)
-train = torch.from_numpy(data.train.x)
-val = torch.from_numpy(data.val.x)
-test = torch.from_numpy(data.test.x)
-n_in = data.n_dims
-
-train_loader = torch.utils.data.DataLoader(train, batch_size=batch_size,)
-val_loader = torch.utils.data.DataLoader(val, batch_size=batch_size,)
-test_loader = torch.utils.data.DataLoader(test, batch_size=batch_size,)
-
