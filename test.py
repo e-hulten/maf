@@ -18,7 +18,7 @@ string = "maf_mnist_512"
 dataset = "mnist"
 batch_size = 128
 
-model = torch.load("models/" + string + ".pt")
+model = torch.load("model_saves/" + string + ".pt")
 train, train_loader, val_loader, test_loader, n_in = data_loader(dataset, batch_size)
 test_maf(model, train, test_loader)
 val_maf(model, train, val_loader)

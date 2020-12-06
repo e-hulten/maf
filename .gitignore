@@ -1,5 +1,8 @@
 __pycache__
-data/maf_data
+.ipynb_checkpoints
+datasets/maf_data/*
+train_plots/*
+model_saves/*
 gif_results
 models
 results

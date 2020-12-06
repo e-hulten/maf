@@ -13,7 +13,7 @@ adapted to work with Python 3.x and PyTorch.
 batch_size = 100
 
 
-class HEPMASS:
+class HEPMassDataset:
     """
     The HEPMASS data set.
     http://archive.ics.uci.edu/ml/datasets/HEPMASS
@@ -27,7 +27,7 @@ class HEPMASS:
 
     def __init__(self):
 
-        path = "data/maf_data/hepmass/"
+        path = "datasets/maf_data/hepmass/"
         trn, val, tst = load_data_no_discrete_normalised_as_array(path)
 
         self.train = self.Data(trn)
@@ -46,7 +46,6 @@ class HEPMASS:
 
 
 def load_data(path):
-
     data_train = pd.read_csv(
         filepath_or_buffer=join(path, "1000_train.csv"), index_col=False
     )
@@ -75,7 +74,6 @@ def load_data_no_discrete(path):
 
 
 def load_data_no_discrete_normalised(path):
-
     data_train, data_test = load_data_no_discrete(path)
     mu = data_train.mean()
     s = data_train.std()
@@ -86,7 +84,6 @@ def load_data_no_discrete_normalised(path):
 
 
 def load_data_no_discrete_normalised_as_array(path):
-
     data_train, data_test = load_data_no_discrete_normalised(path)
     data_train, data_test = data_train.values, data_test.values
 

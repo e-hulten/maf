@@ -14,7 +14,7 @@ adapted to work with Python 3.x and PyTorch.
 batch_size = 100
 
 
-class MNIST:
+class MNISTDataset:
 
     alpha = 1e-6
 
@@ -43,11 +43,11 @@ class MNIST:
             """
             Transforms pixel values with logit to be unconstrained.
             """
-            x = MNIST.alpha + (1 - 2 * MNIST.alpha) * x
+            x = MNISTDataset.alpha + (1 - 2 * MNISTDataset.alpha) * x
             return np.log(x / (1.0 - x))
 
     def __init__(self, logit=True, dequantize=True):
-        root = "data/maf_data/"
+        root = "datasets/maf_data/"
         # load dataset
         f = gzip.open(root + "mnist/mnist.pkl.gz", "rb")
         train, val, test = pickle.load(f, encoding="latin1")

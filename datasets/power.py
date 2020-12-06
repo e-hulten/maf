@@ -11,7 +11,7 @@ adapted to work with Python 3.x and PyTorch.
 batch_size = 100
 
 
-class POWER:
+class PowerDataset:
     class Data:
         def __init__(self, data):
             self.x = data.astype(np.float32)
@@ -37,7 +37,7 @@ class POWER:
         plt.show()
 
 
-def load_data(root="data/maf_data/"):
+def load_data(root="datasets/maf_data/"):
     return np.load(root + "power/data.npy")
 
 

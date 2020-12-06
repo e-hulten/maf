@@ -1,90 +1,128 @@
+from typing import List, Optional
+import numpy as np
+from numpy.random import permutation, randint
 import torch
 import torch.nn as nn
+from torch import Tensor
 from torch.nn import functional as F
-import numpy as np
+from torch.nn import ReLU
+
+# This implementation of MADE is copied from: https://github.com/e-hulten/made.
 
 
-class MaskedSum(nn.Linear):
-    def __init__(self, n_in, n_out):
-        super().__init__(n_in, n_out)
+class MaskedLinear(nn.Linear):
+    """Linear transformation with masked out elements. y = x.dot(mask*W.T) + b"""
 
-    def initialise_mask(self, mask):
+    def __init__(self, n_in: int, n_out: int, bias: bool = True) -> None:
+        """
+        Args:
+            n_in: Size of each input sample.
+            n_out:Size of each output sample.
+            bias: Whether to include additive bias. Default: True.
+        """
+        super().__init__(n_in, n_out, bias)
+        self.mask = None
+
+    def initialise_mask(self, mask: Tensor):
+        """Internal method to initialise mask."""
         self.mask = mask
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
+        """Apply masked linear transformation."""
         return F.linear(x, self.mask * self.weight, self.bias)
 
 
 class MADE(nn.Module):
     def __init__(
-        self, n_in, hidden_dims, random_order=False, seed=None, gaussian=False
-    ):
+        self,
+        n_in: int,
+        hidden_dims: List[int],
+        gaussian: bool = False,
+        random_order: bool = False,
+        seed: Optional[int] = None,
+    ) -> None:
+        """Initalise MADE model.
+    
+        Args:
+            n_in: Size of input.
+            hidden_dims: List with sizes of the hidden layers.
+            gaussian: Whether to use Gaussian MADE. Default: False.
+            random_order: Whether to use random order. Default: False.
+            seed: Random seed for numpy. Default: None.
+        """
         super().__init__()
+        # Set random seed.
+        np.random.seed(seed)
         self.n_in = n_in
-        self.n_out = 2 * n_in if gaussian is True else n_in
+        self.n_out = 2 * n_in if gaussian else n_in
         self.hidden_dims = hidden_dims
         self.random_order = random_order
-        self.seed = seed
         self.gaussian = gaussian
-        self.relu = torch.nn.ReLU(inplace=True)
+        self.masks = {}
+        self.mask_matrix = []
         self.layers = []
 
-        self.layers.append(MaskedSum(n_in, self.hidden_dims[0]))
-        self.layers.append(self.relu)
-        # hidden -> hidden
-        for l in range(1, len(hidden_dims)):
-            self.layers.append(MaskedSum(hidden_dims[l - 1], hidden_dims[l]))
-            self.layers.append(self.relu)
-        # hidden -> output
-        self.layers.append(MaskedSum(hidden_dims[-1], self.n_out))
-
-        # create model
+        # List of layers sizes.
+        dim_list = [self.n_in, *hidden_dims, self.n_out]
+        # Make layers and activation functions.
+        for i in range(len(dim_list) - 2):
+            self.layers.append(MaskedLinear(dim_list[i], dim_list[i + 1]),)
+            self.layers.append(ReLU())
+        # Hidden layer to output layer.
+        self.layers.append(MaskedLinear(dim_list[-2], dim_list[-1]))
+        # Create model.
         self.model = nn.Sequential(*self.layers)
-        # get masks for the masked activations
-        self.create_masks()
+        # Get masks for the masked activations.
+        self._create_masks()
 
-    def forward(self, x):
-        return self.model(x) if self.gaussian else torch.sigmoid(self.model(x))
+    def forward(self, x: Tensor) -> Tensor:
+        """Forward pass."""
+        if self.gaussian:
+            # If the output is Gaussan, return raw mus and sigmas.
+            return self.model(x)
+        else:
+            # If the output is Bernoulli, run it trough sigmoid to squash p into (0,1).
+            return torch.sigmoid(self.model(x))
 
-    def create_masks(self):
-        np.random.seed(self.seed)
-        self.masks = {}
-        L = len(self.hidden_dims)  # number of hidden layers
-        D = self.n_in  # number of inputs
+    def _create_masks(self) -> None:
+        """Create masks for the hidden layers."""
+        # Define some constants for brevity.
+        L = len(self.hidden_dims)
+        D = self.n_in
 
-        # if false, use the natural ordering [1,2,...,D]
-        self.masks[0] = np.random.permutation(D) if self.random_order else np.arange(D)
+        # Whether to use random or natural ordering of the inputs.
+        self.masks[0] = permutation(D) if self.random_order else np.arange(D)
 
-        # set the connectivity number m for the hidden layers
+        # Set the connectivity number m for the hidden layers.
         # m ~ DiscreteUniform[min_{prev_layer}(m), D-1]
         for l in range(L):
-            self.masks[l + 1] = np.random.randint(
-                self.masks[l].min(), D - 1, size=self.hidden_dims[l]
-            )
+            low = self.masks[l].min()
+            size = self.hidden_dims[l]
+            self.masks[l + 1] = randint(low=low, high=D - 1, size=size)
 
-        self.mask_matrix = []
-        # create mask matrix for input->hidden_1->...->hidden_L
-        # (i.e., excluding hidden_L->output)
-        for mask_num in range(len(self.masks) - 1):
-            m = self.masks[mask_num]  # current layer
-            m_next = self.masks[mask_num + 1]  # next layer
-            M = torch.zeros(len(m_next), len(m))  # mask matrix
-            for i in range(len(m_next)):
-                M[i, :] = torch.from_numpy((m_next[i] >= m).astype(int))
+        # Add m for output layer. Output order same as input order.
+        self.masks[L + 1] = self.masks[0]
+
+        # Create mask matrix for input -> hidden_1 -> ... -> hidden_L.
+        for i in range(len(self.masks) - 1):
+            m = self.masks[i]
+            m_next = self.masks[i + 1]
+            # Initialise mask matrix.
+            M = torch.zeros(len(m_next), len(m))
+            for j in range(len(m_next)):
+                # Use broadcasting to compare m_next[j] to each element in m.
+                M[j, :] = torch.from_numpy((m_next[j] >= m).astype(int))
+            # Append to mask matrix list.
             self.mask_matrix.append(M)
 
-        # create mask matrix for hidden_L->output
-        m = self.masks[L]
-        m_out = self.masks[0]
-        M_out = torch.zeros(len(m_out), len(m))
-        for i in range(len(m_out)):
-            M_out[i, :] = torch.from_numpy((m_out[i] > m).astype(int))
+        # If the output is Gaussian, double the number of output units (mu,sigma).
+        # Pairwise identical masks.
+        if self.gaussian:
+            m = self.mask_matrix.pop(-1)
+            self.mask_matrix.append(torch.cat((m, m), dim=0))
 
-        M_out = torch.cat((M_out, M_out), dim=0) if self.gaussian is True else M_out
-        self.mask_matrix.append(M_out)
-
-        # get masks for the layers of self.model
+        # Initalise the MaskedLinear layers with weights.
         mask_iter = iter(self.mask_matrix)
         for module in self.model.modules():
-            if isinstance(module, MaskedSum):
+            if isinstance(module, MaskedLinear):
                 module.initialise_mask(next(mask_iter))

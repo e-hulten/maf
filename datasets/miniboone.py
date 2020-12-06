@@ -11,8 +11,7 @@ class MINIBOONE:
             self.N = self.x.shape[0]
 
     def __init__(self):
-
-        file = "data/maf_data/miniboone/data.npy"
+        file = "datasets/maf_data/miniboone/data.npy"
         trn, val, tst = load_data_normalised(file)
 
         self.train = self.Data(trn)
@@ -23,7 +22,6 @@ class MINIBOONE:
 
 
 def load_data(root_path):
-
     data = np.load(root_path)
     N_test = int(0.1 * data.shape[0])
     data_test = data[-N_test:]
@@ -36,7 +34,6 @@ def load_data(root_path):
 
 
 def load_data_normalised(root_path):
-
     data_train, data_validate, data_test = load_data(root_path)
     data = np.vstack((data_train, data_validate))
     mu = data.mean(axis=0)

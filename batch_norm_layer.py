@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 
-class BatchNorm(nn.Module):
+class BatchNormLayer(nn.Module):
     def __init__(self, dim, eps=1e-5):
         super().__init__()
         self.eps = eps

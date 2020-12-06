@@ -1,124 +1,74 @@
 import torch
 import numpy as np
-import os
-import sys
-import argparse
-
-from data.loader import data_loader
 from maf import MAF
 from made import MADE
-from utils_maf import (
-    train_one_epoch_maf,
-    val_maf,
-    test_maf,
-    sample_digits_maf,
-)
-from utils_made import train_one_epoch_made, val_made, test_made
-from utils import plot_losses
+from datasets.data_loaders import get_data, get_data_loaders
+from utils.train import train_one_epoch_maf, train_one_epoch_made
+from utils.validation import val_maf, val_made
+from utils.test import test_maf, test_made
+from utils.plot import sample_digits_maf, plot_losses
 
-parser = argparse.ArgumentParser(description="Set hyperparameters for training MAF.")
-parser.add_argument(
-    "--model", default="maf", type=str, help='Choose model: "maf" or "made"'
-)
-parser.add_argument("--data", default="mnist", type=str, help="Choose dataset.")
-parser.add_argument("--batch_size", default=128, type=int, help="Choose batch size.")
-parser.add_argument(
-    "--n_mades", default=5, type=int, help="Number of layers (MADEs) in the MAF."
-)
-parser.add_argument(
-    "--hidden_dims",
-    default=[512],
-    type=int,
-    nargs="+",
-    help="Size of each MADE. Integers represent layer sizes, and should be separated by spaces.",
-)
-parser.add_argument(
-    "--lr",
-    default=1e-4,
-    type=float,
-    help="Choose learning rate for the Adam optimiser.",
-)
-parser.add_argument(
-    "--random_order",
-    default=False,
-    type=bool,
-    help="Choose order of input. Default: False, i.e., natural ordering.",
-)
-parser.add_argument(
-    "--patience", default=30, type=int, help="Patience for early stopping.",
-)
-parser.add_argument(
-    "--plot",
-    default=True,
-    type=bool,
-    help='Plot during training or not. Only relevant for the "mnist" dataset.',
-)
-args = parser.parse_args()
 
 # --------- SET PARAMETERS ----------
-dataset = args.data
-batch_size = args.batch_size
-n_mades = args.n_mades
-hidden_dims = args.hidden_dims
-lr = args.lr
-random_order = args.random_order
-patience = args.patience
+model_name = "maf"  # 'MAF' or 'MADE'
+dataset_name = "mnist"
+batch_size = 128
+n_mades = 5
+hidden_dims = [512]
+lr = 1e-4
+random_order = False
+patience = 30  # For early stopping
 seed = 290713
-if args.plot:
-    print(
-        "WARNING: Plotting during training significantly slows down the training process.\nIf time is a concern, please consider setting --plot False."
-    )
+plot = True
+max_epochs = 1000
 # -----------------------------------
 
-# load data loaders
-train, train_loader, val_loader, test_loader, n_in = data_loader(dataset, batch_size)
-
-if args.model == "maf":
+# Get dataset.
+data = get_data(dataset_name)
+train = torch.from_numpy(data.train.x)
+# Get data loaders.
+train_loader, val_loader, test_loader = get_data_loaders(data, batch_size)
+# Get model.
+n_in = data.n_dims
+if model_name.lower() == "maf":
     model = MAF(n_in, n_mades, hidden_dims)
-elif args.model == "made":
+elif model_name.lower() == "made":
     model = MADE(n_in, hidden_dims, random_order=random_order, seed=seed, gaussian=True)
+# Get optimiser.
+optimiser = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-6)
 
-optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-6)
 
-# creating directory for saving the model
-if not os.path.exists("models"):
-    os.makedirs("models")
-
-# naming the model
-string = args.model + "_" + dataset
-for i in range(len(hidden_dims)):
-    string += "_" + str(hidden_dims[i])
-string += ".pt"
-
-# for plotting
+# Format name of model save file.
+save_name = f"{model_name}_{dataset_name}_{'_'.join(str(d) for d in hidden_dims)}.pt"
+# Initialise list for plotting.
 epochs_list = []
 train_losses = []
 val_losses = []
-
-# for early stopping
+# Initialiise early stopping.
 i = 0
 max_loss = np.inf
-
-# training
-for epoch in range(1, sys.maxsize):
-    if args.model == "maf":
-        train_loss = train_one_epoch_maf(model, epoch, optimizer, train_loader)
+# Training loop.
+for epoch in range(1, max_epochs):
+    if model_name == "maf":
+        train_loss = train_one_epoch_maf(model, epoch, optimiser, train_loader)
         val_loss = val_maf(model, train, val_loader)
-    elif args.model == "made":
-        train_loss = train_one_epoch_made(model, epoch, optimizer, train_loader)
+    elif model_name == "made":
+        train_loss = train_one_epoch_made(model, epoch, optimiser, train_loader)
         val_loss = val_made(model, val_loader)
-
-    if args.plot:
-        sample_digits_maf(model, epoch, random_order=False, seed=5)
+    if plot:
+        sample_digits_maf(model, epoch, random_order=random_order, seed=5)
 
     epochs_list.append(epoch)
     train_losses.append(train_loss)
     val_losses.append(val_loss)
 
+    # Early stopping. Save model on each epoch with improvement.
     if val_loss < max_loss:
         i = 0
         max_loss = val_loss
-        torch.save(model, "./models/" + string)  # will print a userwarning 1st epoch
+        torch.save(
+            model, "model_saves/" + save_name
+        )  # Will print a UserWarning 1st epoch.
     else:
         i += 1
 
@@ -127,3 +77,5 @@ for epoch in range(1, sys.maxsize):
     else:
         print("Patience counter: {}/{}\n Terminate training!".format(i, patience))
         break
+
+plot_losses(epochs_list, train_losses, val_losses, title=None)
